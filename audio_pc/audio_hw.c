@@ -211,6 +211,7 @@ enum {
     ORIENTATION_UNDEFINED,
 };
 
+static int init_cards_and_route(struct audio_device *adev, bool reportCardErrors);
 static uint32_t out_get_sample_rate(const struct audio_stream *stream);
 static size_t out_get_buffer_size(const struct audio_stream *stream);
 static audio_format_t out_get_format(const struct audio_stream *stream);
@@ -234,7 +235,7 @@ static void find_card_slot(struct audio_device *adev)
 {
     int slot_num;
     int internal_cards_found;
-    int retval, retry_cnt, fd;
+    int retval, fd;
     char control_path[PATH_MAX];
     char error_str[255];
     struct snd_ctl_card_info card_info;
@@ -246,16 +247,15 @@ static void find_card_slot(struct audio_device *adev)
 
     internal_cards_found = 0;
 
-    for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
         for (slot_num = 0; slot_num < MAX_CARDS; slot_num++) {
             if (internal_cards_found == MAX_INTERNAL_CARDS)
                 return;
 
-            snprintf(control_path, sizeof(control_path), CARD_CTRL_PATH, 
+            snprintf(control_path, sizeof(control_path), CARD_CTRL_PATH,
                      slot_num);
 
             fd = open(control_path, O_RDWR);
-            ALOGV("[%d][%d][%d]find_card_slot: open %s fd=%d", retry_cnt, 
+            ALOGV("[%d][%d]find_card_slot: open %s fd=%d",
                   slot_num, internal_cards_found, control_path, fd);
             if (fd == -1) {
                 strerror_r(errno, error_str, sizeof(error_str));
@@ -264,8 +264,7 @@ static void find_card_slot(struct audio_device *adev)
             else {
                 if ((retval = ioctl(fd, SNDRV_CTL_IOCTL_CARD_INFO,
                                     &card_info)) < 0) {
-                    ALOGE("[%d]find_card_slot: ioctl() failed. retval=%d", 
-                          retry_cnt, retval);
+                    ALOGE("find_card_slot: ioctl() failed. retval=%d", retval);
                     close(fd);
                     continue;
                 }
@@ -299,8 +298,6 @@ static void find_card_slot(struct audio_device *adev)
                 }
             }
         }
-        usleep(60000);
-    }
 }
 
 static bool find_usb_card_slot(struct audio_device *adev)
@@ -357,6 +354,11 @@ static void select_devices(struct audio_device *adev) {
     int hdmi_on;
     int usb_out_on;
     int usb_in_on;
+    int ret;
+    ret =  init_cards_and_route(adev, true);
+    if (ret < 0){
+        return;
+    }
 
     headphone_on = adev->out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
     headset_on = adev->out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET;
@@ -489,6 +491,9 @@ static int start_output_stream(struct stream_out *out)
     int card;
     unsigned int device;
     int ret;
+    ret =  init_cards_and_route(adev, true);
+    if (ret < 0)
+        return ret;
 
     /*
      * Due to the lack of sample rate converters in the SoC,
@@ -564,6 +569,10 @@ static int start_input_stream(struct stream_in *in)
     int card;
     unsigned int device;
     int ret;
+
+    ret =  init_cards_and_route(adev, true);
+    if (ret < 0)
+        return ret;
 
     /*
      * Due to the lack of sample rate converters in the SoC,
@@ -1462,6 +1471,24 @@ static int adev_close(hw_device_t *device)
     return 0;
 }
 
+static int init_cards_and_route(struct audio_device *adev, bool reportCardErrors)
+{
+    if (adev->card[adev->card_out_index].card_slot == CARD_SLOT_NOT_FOUND) {
+        find_card_slot(adev);
+        if (adev->card[adev->card_out_index].card_slot != CARD_SLOT_NOT_FOUND) {
+            adev->ar = audio_route_init((unsigned int)
+                adev->card[adev->card_out_index].card_slot);
+            if (adev->ar == NULL) {
+                return -EINVAL;
+            }
+        }
+        else if (reportCardErrors){
+            return -EINVAL;
+        }
+    }
+    return 0;
+}
+
 static int adev_open(const hw_module_t* module, const char* name,
                      hw_device_t** device)
 {
@@ -1494,25 +1521,17 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->hw_device.open_input_stream = adev_open_input_stream;
     adev->hw_device.close_input_stream = adev_close_input_stream;
     adev->hw_device.dump = adev_dump;
-
-    find_card_slot(adev);
-
-   /*
+    /*
     * Hard-coded to the internal codec device for now, an xml file
     *   is needed to continue.
     */
     adev->card_out_index = AUDIO_CARD_PCH;
+    adev->card[adev->card_out_index].card_slot = CARD_SLOT_NOT_FOUND;
 
-    if (adev->card[adev->card_out_index].card_slot == CARD_SLOT_NOT_FOUND) {
+    ret =  init_cards_and_route(adev, false);
+    if (ret < 0){
         free(adev);
-        return -EINVAL;
-    }
-
-    adev->ar = audio_route_init((unsigned int)
-             adev->card[adev->card_out_index].card_slot);
-    if (adev->ar == NULL) {
-       free(adev);
-       return -EINVAL;
+        return ret;
     }
     switch (adev->card_out_index) {
         case AUDIO_CARD_HDMI:
