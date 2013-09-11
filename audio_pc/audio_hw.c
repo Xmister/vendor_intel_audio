@@ -211,7 +211,7 @@ enum {
     ORIENTATION_UNDEFINED,
 };
 
-static int init_cards_and_route(struct audio_device *adev, bool reportCardErrors);
+static int init_cards_and_route(struct audio_device *adev, bool report_card_errors);
 static uint32_t out_get_sample_rate(const struct audio_stream *stream);
 static size_t out_get_buffer_size(const struct audio_stream *stream);
 static audio_format_t out_get_format(const struct audio_stream *stream);
@@ -1471,7 +1471,7 @@ static int adev_close(hw_device_t *device)
     return 0;
 }
 
-static int init_cards_and_route(struct audio_device *adev, bool reportCardErrors)
+static int init_cards_and_route(struct audio_device *adev, bool report_card_errors)
 {
     if (adev->card[adev->card_out_index].card_slot == CARD_SLOT_NOT_FOUND) {
         find_card_slot(adev);
@@ -1481,8 +1481,16 @@ static int init_cards_and_route(struct audio_device *adev, bool reportCardErrors
             if (adev->ar == NULL) {
                 return -EINVAL;
             }
+            /*
+                select_devices will call init_cards_and_route, but there is no
+                deep recursion happening. select_devices will be called only if
+                card is found. when select_devices calls init_cards_and_route
+                the method will never pass initial if check (the card was found
+                so it is not CARD_SLOT_NOT_FOUND).
+            */
+            select_devices(adev);
         }
-        else if (reportCardErrors){
+        else if (report_card_errors){
             return -EINVAL;
         }
     }
