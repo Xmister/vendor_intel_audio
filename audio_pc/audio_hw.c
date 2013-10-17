@@ -1465,7 +1465,9 @@ static int adev_close(hw_device_t *device)
 {
     struct audio_device *adev = (struct audio_device *)device;
 
+    pthread_mutex_lock(&adev->lock);
     audio_route_free(adev->ar);
+    pthread_mutex_unlock(&adev->lock);
 
     free(device);
     return 0;
@@ -1536,7 +1538,10 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->card_out_index = AUDIO_CARD_PCH;
     adev->card[adev->card_out_index].card_slot = CARD_SLOT_NOT_FOUND;
 
+    pthread_mutex_lock(&adev->lock);
     ret =  init_cards_and_route(adev, false);
+    pthread_mutex_unlock(&adev->lock);
+
     if (ret < 0){
         free(adev);
         return ret;

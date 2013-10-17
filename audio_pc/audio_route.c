@@ -84,6 +84,9 @@ static void path_free(struct audio_route *ar)
             free(ar->mixer_path[i].setting);
     }
     free(ar->mixer_path);
+    ar->mixer_path = NULL;
+    ar->mixer_path_size = 0;
+    ar->num_mixer_paths = 0;
 }
 
 static struct mixer_path *path_get_by_name(struct audio_route *ar,
@@ -101,6 +104,11 @@ static struct mixer_path *path_get_by_name(struct audio_route *ar,
 static struct mixer_path *path_create(struct audio_route *ar, const char *name)
 {
     struct mixer_path *new_mixer_path = NULL;
+
+    if (!ar) {
+        ALOGE("invalid audio_route");
+        return NULL;
+    }
 
     if (path_get_by_name(ar, name)) {
         ALOGE("Path name '%s' already exists", name);
@@ -629,5 +637,7 @@ void audio_route_free(struct audio_route *ar)
 {
     free_mixer_state(ar);
     mixer_close(ar->mixer);
+    path_free(ar);
     free(ar);
+    ar = NULL;
 }
