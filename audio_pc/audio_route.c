@@ -306,8 +306,10 @@ static void start_tag(void *data, const XML_Char *tag_name,
                     break;
             }
 
-            /* apply the new value */
-            ar->mixer_state[i].new_value = value;
+            if (i < ar->num_mixer_ctls) {
+                /* apply the new value */
+                ar->mixer_state[i].new_value = value;
+            }
         } else {
             /* nested ctl (within a path) */
             mixer_setting.ctl = ctl;
