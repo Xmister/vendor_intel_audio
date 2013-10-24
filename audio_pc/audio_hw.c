@@ -53,7 +53,7 @@
 #define PCH_DEVICE 0
 #define PCH_DEVICE_SCO 2
 
-#define HDMI_ID_STR "MID"
+#define MID_ID_STR "MID"
 #define HDMI_DEVICE 7
 
 #define INTERNAL_DRIVER_STR "HDA-Intel"
@@ -65,6 +65,8 @@
 #define USB_MIC_CAPTURE_SWITCH_ON "1"
 #define USB_MIC_CAPTURE_VOLUME_STR "Mic Capture Volume"
 #define USB_MIC_CAPTURE_VOLUME_DEFAULT "10"
+
+#define CODEC_CHIP_NAME_PATH "/sys/class/sound/hwC%uD0/chip_name"
 
 #define OTHER_DEVICE 0
 
@@ -230,12 +232,34 @@ static void release_buffer(struct resampler_buffer_provider *buffer_provider,
 
 /* Helper functions */
 
+static void retrieve_codec_name(char *codec_name_path, char *codec_name, int size)
+{
+    int fd, cnt;
+
+    fd = open(codec_name_path, O_RDONLY);
+    if (fd == -1) {
+        ALOGE("Failed to open %s", codec_name_path);
+        /* If no codec name file, then use unknown. */
+        return;
+    } else {
+        cnt = read(fd, codec_name, size);
+        if (cnt <= 0) {
+            ALOGE("Failed to read vendor name");
+        } else {
+           codec_name[cnt-1] = '\0';
+        }
+        close(fd);
+    }
+}
+
 static void find_card_slot(struct audio_device *adev)
 {
     int slot_num;
     int internal_cards_found;
     int retval, retry_cnt, fd;
     char control_path[PATH_MAX];
+    char codec_name_path[PATH_MAX];
+    char codec_name[PATH_MAX];
     char error_str[255];
     struct snd_ctl_card_info card_info;
 
@@ -251,11 +275,11 @@ static void find_card_slot(struct audio_device *adev)
             if (internal_cards_found == MAX_INTERNAL_CARDS)
                 return;
 
-            snprintf(control_path, sizeof(control_path), CARD_CTRL_PATH, 
+            snprintf(control_path, sizeof(control_path), CARD_CTRL_PATH,
                      slot_num);
 
             fd = open(control_path, O_RDWR);
-            ALOGV("[%d][%d][%d]find_card_slot: open %s fd=%d", retry_cnt, 
+            ALOGV("[%d][%d][%d]find_card_slot: open %s fd=%d", retry_cnt,
                   slot_num, internal_cards_found, control_path, fd);
             if (fd == -1) {
                 strerror_r(errno, error_str, sizeof(error_str));
@@ -264,7 +288,7 @@ static void find_card_slot(struct audio_device *adev)
             else {
                 if ((retval = ioctl(fd, SNDRV_CTL_IOCTL_CARD_INFO,
                                     &card_info)) < 0) {
-                    ALOGE("[%d]find_card_slot: ioctl() failed. retval=%d", 
+                    ALOGE("[%d]find_card_slot: ioctl() failed. retval=%d",
                           retry_cnt, retval);
                     close(fd);
                     continue;
@@ -272,29 +296,36 @@ static void find_card_slot(struct audio_device *adev)
                 close(fd);
                 if (strncmp(INTERNAL_DRIVER_STR, (char *) &card_info.driver[0],
                             strlen(INTERNAL_DRIVER_STR)) == 0) {
-                    if (strncmp(HDMI_ID_STR, (char *) card_info.id,
-                                strlen(HDMI_ID_STR)) == 0) {
-                        if (adev->card[AUDIO_CARD_HDMI].card_slot ==
-                          CARD_SLOT_NOT_FOUND) {
-                            adev->card[AUDIO_CARD_HDMI].card_slot
-                              = slot_num;
-                            adev->card[AUDIO_CARD_HDMI].device
-                              = HDMI_DEVICE;
-                            internal_cards_found++;
-                            ALOGV("Set HDMI slot %d", slot_num);
+                    snprintf(codec_name_path, sizeof(codec_name_path), CODEC_CHIP_NAME_PATH, slot_num);
+                    retrieve_codec_name((char*) &codec_name_path, (char*) &codec_name, sizeof(codec_name));
+                    if (strncmp(codec_name, "ALC262", strlen(codec_name)) == 0) {
+                        if (strncmp(MID_ID_STR, (char *) card_info.id, strlen(MID_ID_STR)) == 0) {
+                            if (adev->card[AUDIO_CARD_PCH].card_slot == CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_PCH].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_PCH].device = PCH_DEVICE;
+                                adev->card[AUDIO_CARD_HDMI].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_HDMI].device = HDMI_DEVICE;
+                                ALOGV("Set PCH slot %d", slot_num);
+                            }
+                            return;
                         }
-                    }
-                    else if (strncmp(PCH_ID_STR, (char *) card_info.id,
-                             strlen(PCH_ID_STR)) == 0) {
-ALOGI("DORIAN WAS HERE 1");
-                        if (adev->card[AUDIO_CARD_PCH].card_slot ==
-                          CARD_SLOT_NOT_FOUND) {
-                            adev->card[AUDIO_CARD_PCH].card_slot
-                              = slot_num;
-                            adev->card[AUDIO_CARD_PCH].device
-                              = PCH_DEVICE;
-                            internal_cards_found++;
-                            ALOGV("Set PCH slot %d", slot_num);
+                    } else {
+                        if ((strncmp(MID_ID_STR, (char *) card_info.id,
+                                strlen(MID_ID_STR)) == 0)) {
+                            if (adev->card[AUDIO_CARD_HDMI].card_slot == CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_HDMI].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_HDMI].device = HDMI_DEVICE;
+                                internal_cards_found++;
+                                ALOGV("Set HDMI slot %d", slot_num);
+                            }
+                        } else if (strncmp(PCH_ID_STR, (char *) card_info.id, strlen(PCH_ID_STR)) == 0) {
+                            if (adev->card[AUDIO_CARD_PCH].card_slot ==
+                                CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_PCH].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_PCH].device = PCH_DEVICE;
+                                internal_cards_found++;
+                                ALOGV("Set PCH slot %d", slot_num);
+                            }
                         }
                     }
                 }
