@@ -486,7 +486,6 @@ static int select_card(int card, unsigned int device, int d)
     sprintf(dname, "/dev/snd/pcmC%dD%d%c", card, device,
       (d == PCM_IN) ? 'c' : 'p');
     if (!access(dname, R_OK | W_OK)) {
-ALOGV("DORIAN WAS HERE 2");
         ALOGD("found %s %s", (d == PCM_IN) ? "in" : "out", dname);
         return(card);
     }
