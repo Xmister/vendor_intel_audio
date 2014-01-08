@@ -361,7 +361,8 @@ static void select_devices(struct audio_device *adev) {
     }
 
     headphone_on = adev->out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
-    headset_on = adev->out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET;
+    headset_on = ((adev->out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET) |
+                 (adev->in_device & AUDIO_DEVICE_IN_WIRED_HEADSET));
     speaker_on = adev->out_device & AUDIO_DEVICE_OUT_SPEAKER;
     docked = adev->out_device & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
     hdmi_on = adev->out_device & AUDIO_DEVICE_OUT_AUX_DIGITAL;
