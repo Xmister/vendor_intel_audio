@@ -529,9 +529,7 @@ static int start_output_stream(struct stream_out *out)
      * the same time.
      */
     if (adev->out_device & AUDIO_DEVICE_OUT_ALL_SCO) {
-        card = adev->card[AUDIO_CARD_PCH].card_slot;
-        device = PCH_DEVICE_SCO;
-        out->pcm_config = &pcm_config_sco;
+        return -1;
     } else {
         card = adev->card[adev->card_out_index].card_slot;
         device = adev->card[adev->card_out_index].device;
@@ -605,9 +603,7 @@ static int start_input_stream(struct stream_in *in)
      * mic PCM or the BC SCO PCM open at the same time.
      */
     if (adev->in_device & AUDIO_DEVICE_IN_ALL_SCO) {
-        card = AUDIO_CARD_PCH;
-        device = PCH_DEVICE_SCO;
-        in->pcm_config = &pcm_config_sco;
+        return -1;
     } else {
         card = adev->card[adev->card_in_index].card_slot;
         device = adev->card[adev->card_in_index].device;
