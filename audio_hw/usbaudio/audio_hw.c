@@ -81,14 +81,46 @@ struct stream_out {
 /* Helper functions */
 
 /* must be called with hw device and output stream mutexes locked */
+
+/*
+ * Find highest hw sample-rate
+ * or 0 if no match is possible.
+ */
+static int find_rate(int card_nbr, int device_nbr)
+{
+    int rate = 0;
+    struct pcm_params *params;
+
+    ALOGV("%s enter",__func__);
+
+    params = pcm_params_get(card_nbr, device_nbr, PCM_OUT);
+    if (params == NULL) {
+        ALOGE("%s - could not get any params for card=%d, device=%d.",__func__, card_nbr, device_nbr);
+        ALOGV("%s exit",__func__);
+        return rate;
+    }
+
+    rate = pcm_params_get_max(params, PCM_PARAM_RATE);
+
+    ALOGV("%s exit",__func__);
+    return rate;
+}
+
 static int start_output_stream(struct stream_out *out)
 {
     struct audio_device *adev = out->dev;
     int i;
+    int sample_rate;
 
     ALOGV("%s enter",__func__);
+
     if ((adev->card < 0) || (adev->device < 0))
         return -EINVAL;
+
+    sample_rate = find_rate(adev->card, adev->device);
+
+    if (sample_rate)
+        pcm_config.rate = sample_rate;
 
     out->pcm = pcm_open(adev->card, adev->device, PCM_OUT, &pcm_config);
 
@@ -350,7 +382,6 @@ static int get_first_usb_card()
     ALOGV("%s exit",__func__);
     return -1;
 }
-
 
 static int adev_open_output_stream(struct audio_hw_device *dev,
                                    audio_io_handle_t handle,
