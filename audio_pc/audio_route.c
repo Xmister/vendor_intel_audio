@@ -432,7 +432,7 @@ int audio_route_control_set_number(unsigned int card_slot, char *control_name,
     for (i = 0; i < num_ctls; i++) {
         ctl = mixer_get_ctl(control_mixer, i);
         name = mixer_ctl_get_name(ctl);
-        if (strcmp(name, control_name) == 0) {
+        if (name && strcmp(name, control_name) == 0) {
             /* Found the control, update and exit */
             value = atoi(string);
             num_values = mixer_ctl_get_num_values(ctl);
@@ -451,7 +451,6 @@ int audio_route_control_set_number(unsigned int card_slot, char *control_name,
         }
     }
 
-    mixer_close(control_mixer);
     return ret;
 }
 
@@ -480,7 +479,7 @@ int audio_route_control_set_enum(unsigned int card_slot, char *control_name,
     for (i = 0; i < num_ctls; i++) {
         ctl = mixer_get_ctl(control_mixer, i);
         name = mixer_ctl_get_name(ctl);
-        if (strcmp(name, control_name) == 0) {
+        if (name && strcmp(name, control_name) == 0) {
             /* Found the control, update and exit */
             type = mixer_ctl_get_type(ctl);
             if (type == MIXER_CTL_TYPE_ENUM) {

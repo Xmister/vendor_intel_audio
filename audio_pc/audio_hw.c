@@ -451,7 +451,7 @@ static int select_card(int card, unsigned int device, int d)
         return(-1);
     }
 
-    sprintf(dname, "/dev/snd/pcmC%dD%d%c", card, device,
+    snprintf(dname, sizeof(dname), "/dev/snd/pcmC%dD%d%c", card, device,
       (d == PCM_IN) ? 'c' : 'p');
     if (!access(dname, R_OK | W_OK)) {
         ALOGD("found %s %s", (d == PCM_IN) ? "in" : "out", dname);
@@ -1285,9 +1285,11 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     struct str_parms *parms;
     char *str;
     char value[32];
-    int ret;
+    int ret = -1;
 
     parms = str_parms_create_str(kvpairs);
+    if (!parms)
+        return ret;
     ret = str_parms_get_str(parms, "orientation", value, sizeof(value));
     if (ret >= 0) {
         int orientation;
