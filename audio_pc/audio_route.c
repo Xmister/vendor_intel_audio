@@ -31,8 +31,8 @@
 
 #define BUF_SIZE 1024
 #define MIXER_XML_PATH "/system/etc/mixer_paths_%s.xml"
-#define CODEC_CHIP_NAME_PATH "/sys/class/sound/hwC%uD0/chip_name"
-#define CODEC_CHIP_NAME_UNKNOWN "unknown"
+#define CODEC_VENDOR_NAME_PATH "/sys/class/sound/hwC%uD0/vendor_name"
+#define CODEC_VENDOR_NAME_UNKNOWN "unknown"
 #define INITIAL_MIXER_PATH_SIZE 8
 
 
@@ -536,19 +536,19 @@ struct audio_route *audio_route_init(unsigned int card_slot)
     if (alloc_mixer_state(ar) < 0)
         goto err_mixer_state;
 
-    snprintf(codec_vendor_name, sizeof(codec_vendor_name), CODEC_CHIP_NAME_PATH, card_slot);
+    snprintf(codec_vendor_name, sizeof(codec_vendor_name), CODEC_VENDOR_NAME_PATH, card_slot);
     fd = open(codec_vendor_name, O_RDONLY);
     if (fd == -1) {
         ALOGE("Failed to open %s", codec_vendor_name);
         /* If no codec name file, then use unknown. */
-        strcpy(vendor_name, CODEC_CHIP_NAME_UNKNOWN);
+        strcpy(vendor_name, CODEC_VENDOR_NAME_UNKNOWN);
     } else {
 
         cnt = read(fd, vendor_name, 255);
         if (cnt <= 0) {
             ALOGE("Failed to read vendor name:%s.", vendor_name);
             /* If no codec name file, then use unknown. */
-            strcpy(vendor_name, CODEC_CHIP_NAME_UNKNOWN);
+            strcpy(vendor_name, CODEC_VENDOR_NAME_UNKNOWN);
         } else {
            vendor_name[cnt-1] = '\0';
         }
