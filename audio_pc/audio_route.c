@@ -240,10 +240,12 @@ static int path_apply(struct audio_route *ar, struct mixer_path *path)
 static int mixer_enum_string_to_value(struct mixer_ctl *ctl, const char *string)
 {
     unsigned int i;
+    char *enum_string = NULL;
 
     /* Search the enum strings for a particular one */
     for (i = 0; i < mixer_ctl_get_num_enums(ctl); i++) {
-        if (strcmp(mixer_ctl_get_enum_string(ctl, i), string) == 0)
+        enum_string = mixer_ctl_get_enum_string(ctl, i);
+        if (enum_string != NULL && (strcmp(enum_string, string) == 0))
             break;
     }
 
@@ -259,7 +261,7 @@ static void start_tag(void *data, const XML_Char *tag_name,
     struct audio_route *ar = state->ar;
     unsigned int i;
     struct mixer_ctl *ctl;
-    int value;
+    int value = 0;
     struct mixer_setting mixer_setting;
     struct mixer_path *new_mixer_path = NULL;
 
@@ -284,45 +286,52 @@ static void start_tag(void *data, const XML_Char *tag_name,
             } else {
                 /* nested path */
                 struct mixer_path *sub_path = path_get_by_name(ar, attr_name);
-                path_add_path(state->path, sub_path);
+                if (sub_path != NULL)
+                    path_add_path(state->path, sub_path);
             }
         }
     }
 
     else if (strcmp(tag_name, "ctl") == 0) {
-        /* Obtain the mixer ctl and value */
-        ctl = mixer_get_ctl_by_name(ar->mixer, attr_name);
-        switch (mixer_ctl_get_type(ctl)) {
-        case MIXER_CTL_TYPE_BOOL:
-        case MIXER_CTL_TYPE_INT:
-            value = atoi((char *)attr_value);
-            break;
-        case MIXER_CTL_TYPE_ENUM:
-            value = mixer_enum_string_to_value(ctl, (char *)attr_value);
-            break;
-        default:
-            value = 0;
-            break;
-        }
-
-        if (state->level == 1) {
-            /* top level ctl (initial setting) */
-
-            /* locate the mixer ctl in the list */
-            for (i = 0; i < ar->num_mixer_ctls; i++) {
-                if (ar->mixer_state[i].ctl == ctl)
-                    break;
-            }
-
-            if (i < ar->num_mixer_ctls) {
-                /* apply the new value */
-                ar->mixer_state[i].new_value = value;
-            }
+        if (attr_name == NULL) {
+            ALOGE("Unnamed ctl!");
         } else {
-            /* nested ctl (within a path) */
-            mixer_setting.ctl = ctl;
-            mixer_setting.value = value;
-            path_add_setting(state->path, &mixer_setting);
+            /* Obtain the mixer ctl and value */
+            ctl = mixer_get_ctl_by_name(ar->mixer, attr_name);
+            switch (mixer_ctl_get_type(ctl)) {
+            case MIXER_CTL_TYPE_BOOL:
+            case MIXER_CTL_TYPE_INT:
+                if (attr_value != NULL)
+                    value = atoi((char *)attr_value);
+                break;
+            case MIXER_CTL_TYPE_ENUM:
+                if (attr_value != NULL)
+                    value = mixer_enum_string_to_value(ctl, (char *)attr_value);
+                break;
+            default:
+                value = 0;
+                break;
+            }
+
+            if (state->level == 1) {
+                /* top level ctl (initial setting) */
+
+                /* locate the mixer ctl in the list */
+                for (i = 0; i < ar->num_mixer_ctls; i++) {
+                    if (ar->mixer_state[i].ctl == ctl)
+                        break;
+                }
+
+                if (i < ar->num_mixer_ctls) {
+                    /* apply the new value */
+                    ar->mixer_state[i].new_value = value;
+                }
+            } else {
+                /* nested ctl (within a path) */
+                mixer_setting.ctl = ctl;
+                mixer_setting.value = value;
+                path_add_setting(state->path, &mixer_setting);
+            }
         }
     }
 
