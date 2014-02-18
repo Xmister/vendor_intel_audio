@@ -54,7 +54,7 @@
 #define PCH_DEVICE_SCO 2
 
 #define HDMI_ID_STR "MID"
-#define HDMI_DEVICE 7
+#define HDMI_DEVICE 3
 
 #define INTERNAL_DRIVER_STR "HDA-Intel"
 
