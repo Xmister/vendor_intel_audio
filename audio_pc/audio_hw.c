@@ -66,6 +66,8 @@
 #define USB_MIC_CAPTURE_VOLUME_STR "Mic Capture Volume"
 #define USB_MIC_CAPTURE_VOLUME_DEFAULT "10"
 
+#define CODEC_CHIP_NAME_PATH "/sys/class/sound/hwC%uD0/chip_name"
+
 #define OTHER_DEVICE 0
 
 #define MAX_RETRIES 100
@@ -231,12 +233,34 @@ static void release_buffer(struct resampler_buffer_provider *buffer_provider,
 
 /* Helper functions */
 
+static void retrieve_codec_name(char *codec_name_path, char *codec_name, int size)
+{
+    int fd, cnt;
+
+    fd = open(codec_name_path, O_RDONLY);
+    if (fd == -1) {
+        ALOGE("Failed to open %s", codec_name_path);
+        /* If no codec name file, then use unknown. */
+        return;
+    } else {
+        cnt = read(fd, codec_name, size);
+        if (cnt <= 0) {
+            ALOGE("Failed to read vendor name");
+        } else {
+           codec_name[cnt-1] = '\0';
+        }
+        close(fd);
+    }
+}
+
 static void find_card_slot(struct audio_device *adev)
 {
     int slot_num;
     int internal_cards_found;
     int retval, fd;
     char control_path[PATH_MAX];
+    char codec_name_path[PATH_MAX];
+    char codec_name[PATH_MAX];
     char error_str[255];
     struct snd_ctl_card_info card_info;
 
@@ -271,28 +295,36 @@ static void find_card_slot(struct audio_device *adev)
                 close(fd);
                 if (strncmp(INTERNAL_DRIVER_STR, (char *) &card_info.driver[0],
                             strlen(INTERNAL_DRIVER_STR)) == 0) {
-                    if (strncmp(HDMI_ID_STR, (char *) card_info.id,
-                                strlen(HDMI_ID_STR)) == 0) {
-                        if (adev->card[AUDIO_CARD_HDMI].card_slot ==
-                          CARD_SLOT_NOT_FOUND) {
-                            adev->card[AUDIO_CARD_HDMI].card_slot
-                              = slot_num;
-                            adev->card[AUDIO_CARD_HDMI].device
-                              = HDMI_DEVICE;
-                            internal_cards_found++;
-                            ALOGV("Set HDMI slot %d", slot_num);
+                    snprintf(codec_name_path, sizeof(codec_name_path), CODEC_CHIP_NAME_PATH, slot_num);
+                    retrieve_codec_name((char*) &codec_name_path, (char*) &codec_name, sizeof(codec_name));
+                    if (strncmp(codec_name, "ALC262", strlen(codec_name)) == 0) {
+                        if (strncmp(HDMI_ID_STR, (char *) card_info.id, strlen(HDMI_ID_STR)) == 0) {
+                            if (adev->card[AUDIO_CARD_PCH].card_slot == CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_PCH].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_PCH].device = PCH_DEVICE;
+                                adev->card[AUDIO_CARD_HDMI].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_HDMI].device = HDMI_DEVICE;
+                                ALOGV("Set PCH slot %d", slot_num);
+                            }
+                            return;
                         }
-                    }
-                    else if (strncmp(PCH_ID_STR, (char *) card_info.id,
-                             strlen(PCH_ID_STR)) == 0) {
-                        if (adev->card[AUDIO_CARD_PCH].card_slot ==
-                          CARD_SLOT_NOT_FOUND) {
-                            adev->card[AUDIO_CARD_PCH].card_slot
-                              = slot_num;
-                            adev->card[AUDIO_CARD_PCH].device
-                              = PCH_DEVICE;
-                            internal_cards_found++;
-                            ALOGV("Set PCH slot %d", slot_num);
+                    } else {
+                        if ((strncmp(HDMI_ID_STR, (char *) card_info.id,
+                                strlen(HDMI_ID_STR)) == 0)) {
+                            if (adev->card[AUDIO_CARD_HDMI].card_slot == CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_HDMI].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_HDMI].device = HDMI_DEVICE;
+                                internal_cards_found++;
+                                ALOGV("Set HDMI slot %d", slot_num);
+                            }
+                        } else if (strncmp(PCH_ID_STR, (char *) card_info.id, strlen(PCH_ID_STR)) == 0) {
+                            if (adev->card[AUDIO_CARD_PCH].card_slot ==
+                                CARD_SLOT_NOT_FOUND) {
+                                adev->card[AUDIO_CARD_PCH].card_slot = slot_num;
+                                adev->card[AUDIO_CARD_PCH].device = PCH_DEVICE;
+                                internal_cards_found++;
+                                ALOGV("Set PCH slot %d", slot_num);
+                            }
                         }
                     }
                 }
