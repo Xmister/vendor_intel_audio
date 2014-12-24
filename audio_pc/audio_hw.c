@@ -298,7 +298,8 @@ static void find_card_slot(struct audio_device *adev)
                     snprintf(codec_name_path, sizeof(codec_name_path), CODEC_CHIP_NAME_PATH, slot_num);
                     retrieve_codec_name((char*) &codec_name_path, (char*) &codec_name, sizeof(codec_name));
                     if ((strncmp(codec_name, "ALC262", strlen(codec_name)) == 0) ||
-                        (strncmp(codec_name, "ALC283", strlen(codec_name)) == 0)) {
+                        (strncmp(codec_name, "ALC283", strlen(codec_name)) == 0) ||
+                        (strncmp(codec_name, "92HD95", strlen(codec_name)) == 0)) {
                         if (strncmp(HDMI_ID_STR, (char *) card_info.id, strlen(HDMI_ID_STR)) == 0) {
                             if (adev->card[AUDIO_CARD_PCH].card_slot == CARD_SLOT_NOT_FOUND) {
                                 adev->card[AUDIO_CARD_PCH].card_slot = slot_num;
